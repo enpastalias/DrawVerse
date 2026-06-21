@@ -1,4 +1,4 @@
-import { rooms, emitRoomUpdate } from './room.socket.js';
+import { rooms, emitRoomUpdate, startRoomTimer, stopRoomTimer, endRound } from './room.socket.js';
 
 export const registerGameHandlers = (io, socket) => {
     socket.on('word:select', ({ roomCode, word }, callback) => {
@@ -60,6 +60,9 @@ export const registerGameHandlers = (io, socket) => {
             // Update room state for all clients in the room
             emitRoomUpdate(io, roomCode);
 
+            // Start room timer countdown
+            startRoomTimer(io, roomCode);
+
             if (callback) callback({ success: true });
         } catch (err) {
             console.error('Error in word:select:', err);
@@ -96,14 +99,32 @@ export const registerGameHandlers = (io, socket) => {
             if (cleanedGuess === cleanedWord) {
                 player.hasGuessed = true;
 
+                // Calculate points: score = 100 + remainingTime
+                const remainingTime = room.timer || 0;
+                const pointsEarned = 100 + remainingTime;
+                player.score = (player.score || 0) + pointsEarned;
+                if (!room.scores) room.scores = {};
+                room.scores[player.username] = player.score;
+
+                if (!room.roundScores) room.roundScores = {};
+                room.roundScores[player.username] = pointsEarned;
+
                 // Broadcast correct guess
                 io.to(roomCode).emit('guessed:correct', {
                     username: player.username,
                     message: `${player.username} guessed the word!`
                 });
 
-                // Broadcast room update so players list updates correct state
-                emitRoomUpdate(io, roomCode);
+                // Check if all players (who are not the drawer) have guessed correctly
+                const guessers = room.players.filter(p => p.socketId !== room.currentDrawer);
+                const allGuessed = guessers.length > 0 && guessers.every(p => p.hasGuessed);
+
+                if (allGuessed) {
+                    stopRoomTimer(roomCode);
+                    endRound(io, roomCode);
+                } else {
+                    emitRoomUpdate(io, roomCode);
+                }
             } else {
                 // Broadcast wrong guess
                 io.to(roomCode).emit('guess:message', {

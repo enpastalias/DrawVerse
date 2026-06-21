@@ -4,6 +4,7 @@ import Button from '../Button';
 import Card from '../Card';
 import StatusBadge from '../StatusBadge';
 import Modal from '../Modal';
+import PlayerCard from '../PlayerCard';
 
 export default function Canvas({ roomCode }) {
     const canvasRef = useRef(null);
@@ -16,6 +17,8 @@ export default function Canvas({ roomCode }) {
     const [room, setRoom] = useState(null);
     const [selectedWord, setSelectedWord] = useState('');
     const [wordMessage, setWordMessage] = useState('');
+    const [timer, setTimer] = useState(0);
+    const [roundEndData, setRoundEndData] = useState(null);
 
     // Guessing/Chat States
     const [messages, setMessages] = useState([]);
@@ -127,6 +130,14 @@ export default function Canvas({ roomCode }) {
             socket.on('guessed:correct', (data) => {
                 setMessages((prev) => [...prev, { ...data, type: 'correct', id: Date.now() + Math.random() }]);
             });
+
+            socket.on('timer:update', ({ time }) => {
+                setTimer(time);
+            });
+
+            socket.on('round:end', (data) => {
+                setRoundEndData(data);
+            });
         }
 
         return () => {
@@ -139,6 +150,8 @@ export default function Canvas({ roomCode }) {
                 socket.off('draw:clear');
                 socket.off('guess:message');
                 socket.off('guessed:correct');
+                socket.off('timer:update');
+                socket.off('round:end');
             }
         };
     }, [socket, roomCode]);
@@ -149,6 +162,8 @@ export default function Canvas({ roomCode }) {
             setMessages([]);
             setSelectedWord('');
             setWordMessage('');
+            setRoundEndData(null);
+            setTimer(0);
         }
     }, [room?.gameStatus]);
 
@@ -281,11 +296,16 @@ export default function Canvas({ roomCode }) {
                                     YOU ARE THE DRAWER
                                 </span>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '500' }}>You are drawing:</span>
-                                <StatusBadge type="success" style={{ fontSize: '0.9rem', padding: '0.3rem 0.85rem' }}>
-                                    {selectedWord || room?.currentWord || '...'}
-                                </StatusBadge>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-primary-hover)', background: 'rgba(139,92,246,0.1)', padding: '0.3rem 0.75rem', borderRadius: '4px', border: '1px solid rgba(139,92,246,0.2)' }}>
+                                    ⏱ {timer}s
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '500' }}>You are drawing:</span>
+                                    <StatusBadge type="success" style={{ fontSize: '0.9rem', padding: '0.3rem 0.85rem' }}>
+                                        {selectedWord || room?.currentWord || '...'}
+                                    </StatusBadge>
+                                </div>
                             </div>
                         </>
                     ) : (
@@ -296,11 +316,28 @@ export default function Canvas({ roomCode }) {
                                     Guess the drawing
                                 </span>
                             </div>
-                            <StatusBadge type="cyan" style={{ fontSize: '0.85rem' }}>
-                                {wordMessage || 'Drawer selected a word'}
-                            </StatusBadge>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-secondary)', background: 'rgba(6,182,212,0.1)', padding: '0.3rem 0.75rem', borderRadius: '4px', border: '1px solid rgba(6,182,212,0.2)' }}>
+                                    ⏱ {timer}s
+                                </div>
+                                <StatusBadge type="cyan" style={{ fontSize: '0.85rem' }}>
+                                    {wordMessage || 'Drawer selected a word'}
+                                </StatusBadge>
+                            </div>
                         </>
                     )
+                ) : room?.gameStatus === 'round_end' ? (
+                    <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ display: 'inline-flex', width: '8px', height: '8px', background: 'var(--color-secondary)', borderRadius: '50%' }} />
+                            <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#fff' }}>
+                                Round Finished!
+                            </span>
+                        </div>
+                        <StatusBadge type="cyan" style={{ fontSize: '0.85rem' }}>
+                            Secret Word: {room?.currentWord}
+                        </StatusBadge>
+                    </>
                 ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ display: 'inline-flex', width: '8px', height: '8px', background: 'var(--text-muted)', borderRadius: '50%' }} />
@@ -319,8 +356,34 @@ export default function Canvas({ roomCode }) {
                 flex: 1,
                 minHeight: 0
             }} className="game-workspace-split">
+
+                {/* Left Side: Players Roster */}
+                <Card style={{
+                    width: '240px',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-surface)',
+                    minHeight: '380px'
+                }} className="players-sidebar">
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                        🏆 Players
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
+                        {room?.players?.map(p => (
+                            <PlayerCard 
+                                key={p.socketId} 
+                                player={p} 
+                                isLocalPlayer={p.socketId === socket?.id}
+                                isDrawer={room.currentDrawer === p.socketId}
+                            />
+                        ))}
+                    </div>
+                </Card>
                 
-                {/* Left Side: Canvas easel */}
+                {/* Center: Canvas easel */}
                 <div style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -339,6 +402,43 @@ export default function Canvas({ roomCode }) {
                         minHeight: '350px'
                     }}>
                         
+                        {/* ROUND RESULT MODAL */}
+                        {roundEndData && (
+                            <Modal isOpen={true} title="Round Finished!">
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: 0 }}>
+                                        The secret word was:
+                                    </p>
+                                    <StatusBadge type="cyan" style={{ fontSize: '1.3rem', padding: '0.5rem 1.5rem', fontWeight: '800' }}>
+                                        {roundEndData.word}
+                                    </StatusBadge>
+                                    <div style={{ width: '100%', marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                                        <h4 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '0.75rem', color: '#fff', textAlign: 'left' }}>
+                                            Scores Earned:
+                                        </h4>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
+                                            {room?.players?.map(p => {
+                                                const earned = roundEndData.roundScores?.[p.username] || 0;
+                                                return (
+                                                    <div key={p.socketId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                                                        <span style={{ fontWeight: '600', fontSize: '0.9rem', color: '#fff' }}>{p.username}</span>
+                                                        <span style={{ fontWeight: '700', fontSize: '0.9rem', color: earned > 0 ? '#34d399' : 'var(--text-muted)' }}>
+                                                            {earned > 0 ? `+${earned}` : '+0'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div style={{ marginTop: '1rem', width: '100%' }}>
+                                        <Button variant="primary" onClick={() => setRoundEndData(null)} style={{ width: '100%', padding: '0.85rem' }}>
+                                            Close
+                                        </Button>
+                                    </div>
+                                </div>
+                            </Modal>
+                        )}
+
                         {/* WORD SELECTION MODALS */}
                         {room?.gameStatus === 'word_selection' && (
                             isDrawer ? (
@@ -664,6 +764,10 @@ export default function Canvas({ roomCode }) {
                     .game-workspace-split {
                         flex-direction: column !important;
                         height: auto !important;
+                    }
+                    .players-sidebar {
+                        width: 100% !important;
+                        min-height: 150px !important;
                     }
                     .guess-sidebar {
                         width: 100% !important;

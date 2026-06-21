@@ -94,6 +94,18 @@ export default function PlayerCard({
                     gap: '0.5rem'
                 }}>
                     {player.username}
+                    <span style={{ 
+                        marginLeft: 'auto', 
+                        fontSize: '0.85rem', 
+                        fontWeight: '800', 
+                        color: 'var(--color-secondary)',
+                        background: 'rgba(6, 182, 212, 0.1)',
+                        padding: '0.1rem 0.5rem',
+                        borderRadius: '4px',
+                        flexShrink: 0
+                    }}>
+                        {player.score || 0} pts
+                    </span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
                     {player.isHost && <StatusBadge type="warning">Host</StatusBadge>}

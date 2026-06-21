@@ -2,6 +2,7 @@ import { getRandomWords } from '../utils/words.js';
 
 // In-memory room storage
 export const rooms = new Map();
+const roomIntervals = new Map();
 
 /**
  * Broadcasts room state to all clients in the room securely.
@@ -21,7 +22,7 @@ export const emitRoomUpdate = (io, roomCode) => {
                 const customizedRoom = { ...room };
 
                 // Strip secret fields if this socket is NOT the current drawer
-                if (room.currentDrawer !== socketId) {
+                if (room.currentDrawer !== socketId && room.gameStatus !== 'round_end') {
                     delete customizedRoom.wordOptions;
                     delete customizedRoom.currentWord;
                 }
@@ -41,10 +42,11 @@ export const registerRoomHandlers = (io, socket) => {
             const newRoom = {
                 roomCode,
                 host: socket.id, // For now use socket.id as host identifier
-                players: [{ socketId: socket.id, username, userId, isHost: true, hasGuessed: false }],
+                players: [{ socketId: socket.id, username, userId, isHost: true, hasGuessed: false, score: 0 }],
                 maxPlayers: 8,
                 status: 'waiting',
-                settings: { rounds: 3, drawTime: 80 }
+                settings: { rounds: 3, drawTime: 80 },
+                scores: { [username]: 0 }
             };
 
             rooms.set(roomCode, newRoom);
@@ -80,8 +82,10 @@ export const registerRoomHandlers = (io, socket) => {
                 return socket.emit('room:error', { message: 'Game already playing' });
             }
 
-            const player = { socketId: socket.id, username, userId, isHost: false, hasGuessed: false };
+            const player = { socketId: socket.id, username, userId, isHost: false, hasGuessed: false, score: 0 };
             room.players.push(player);
+            if (!room.scores) room.scores = {};
+            room.scores[username] = 0;
 
             socket.join(roomCode);
             socket.roomCode = roomCode;
@@ -102,7 +106,7 @@ export const registerRoomHandlers = (io, socket) => {
             if (room) {
                 // Emit customized room state to the single socket requesting it
                 const customizedRoom = { ...room };
-                if (room.currentDrawer !== socket.id) {
+                if (room.currentDrawer !== socket.id && room.gameStatus !== 'round_end') {
                     delete customizedRoom.wordOptions;
                     delete customizedRoom.currentWord;
                 }
@@ -134,8 +138,11 @@ export const registerRoomHandlers = (io, socket) => {
         room.gameStatus = 'word_selection'; // Update game state status to word_selection
         room.currentWord = null;
         room.wordOptions = getRandomWords(3); // Choose 3 random options
+        room.scores = {};
         room.players.forEach(p => {
             p.hasGuessed = false;
+            p.score = 0;
+            room.scores[p.username] = 0;
         });
 
         console.log(`[game:start] AFTER: roomId: ${roomCode}, socket.id: ${socket.id}, players: ${JSON.stringify(room.players)}, hostId: ${room.host}, currentDrawer: ${room.currentDrawer}, options: ${JSON.stringify(room.wordOptions)}`);
@@ -162,6 +169,7 @@ const handleDisconnect = (io, socket) => {
         room.players = room.players.filter(p => p.socketId !== socket.id);
 
         if (room.players.length === 0) {
+            stopRoomTimer(roomCode);
             rooms.delete(roomCode); // Clean up empty rooms
         } else {
             // Re-assign host if host left
@@ -176,4 +184,85 @@ const handleDisconnect = (io, socket) => {
 
     socket.leave(roomCode);
     socket.roomCode = null;
+};
+
+export const stopRoomTimer = (roomCode) => {
+    if (roomIntervals.has(roomCode)) {
+        clearInterval(roomIntervals.get(roomCode));
+        roomIntervals.delete(roomCode);
+    }
+};
+
+export const endRound = (io, roomCode) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    room.gameStatus = 'round_end';
+
+    // Calculate drawer's points
+    const correctGuesses = room.players.filter(p => p.socketId !== room.currentDrawer && p.hasGuessed).length;
+    const drawerPoints = correctGuesses * 50;
+
+    const drawer = room.players.find(p => p.socketId === room.currentDrawer);
+    if (drawer) {
+        drawer.score = (drawer.score || 0) + drawerPoints;
+        if (!room.scores) room.scores = {};
+        room.scores[drawer.username] = drawer.score;
+        if (drawerPoints > 0) {
+            if (!room.roundScores) room.roundScores = {};
+            room.roundScores[drawer.username] = drawerPoints;
+        }
+    }
+
+    emitRoomUpdate(io, roomCode);
+
+    // Broadcast round:end event
+    io.to(roomCode).emit('round:end', {
+        word: room.currentWord,
+        roundScores: room.roundScores || {}
+    });
+};
+
+export const startRoomTimer = (io, roomCode) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    stopRoomTimer(roomCode);
+
+    room.timer = room.settings?.drawTime || 60;
+    room.roundScores = {};
+
+    // Ensure room.scores is initialized
+    if (!room.scores) {
+        room.scores = {};
+    }
+    room.players.forEach(p => {
+        room.scores[p.username] = p.score || 0;
+    });
+
+    emitRoomUpdate(io, roomCode);
+    io.to(roomCode).emit('timer:update', { time: room.timer });
+
+    const interval = setInterval(() => {
+        const currentRoom = rooms.get(roomCode);
+        if (!currentRoom || currentRoom.status !== 'playing' || currentRoom.gameStatus !== 'drawing') {
+            clearInterval(interval);
+            roomIntervals.delete(roomCode);
+            return;
+        }
+
+        currentRoom.timer -= 1;
+        io.to(roomCode).emit('timer:update', { time: currentRoom.timer });
+
+        const guessers = currentRoom.players.filter(p => p.socketId !== currentRoom.currentDrawer);
+        const allGuessed = guessers.length > 0 && guessers.every(p => p.hasGuessed);
+
+        if (currentRoom.timer <= 0 || allGuessed) {
+            clearInterval(interval);
+            roomIntervals.delete(roomCode);
+            endRound(io, roomCode);
+        }
+    }, 1000);
+
+    roomIntervals.set(roomCode, interval);
 };
