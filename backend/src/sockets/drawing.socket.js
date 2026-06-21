@@ -1,3 +1,5 @@
+import { rooms } from './room.socket.js';
+
 const roomCanvases = new Map();
 
 export const registerDrawingHandlers = (io, socket) => {
@@ -10,6 +12,18 @@ export const registerDrawingHandlers = (io, socket) => {
     // Relay and store line segments
     socket.on('draw:line', ({ roomCode, line }) => {
         if (!roomCode) return;
+
+        const room = rooms.get(roomCode);
+        if (!room) return;
+
+        // Verify the sender is the current assigned drawer
+        if (room.currentDrawer !== socket.id) {
+            return;
+        }
+
+        // Keep room isolation: verify player is registered in this room
+        const isPlayerInRoom = room.players.some(p => p.socketId === socket.id);
+        if (!isPlayerInRoom) return;
 
         if (!roomCanvases.has(roomCode)) {
             roomCanvases.set(roomCode, []);
@@ -24,8 +38,23 @@ export const registerDrawingHandlers = (io, socket) => {
     // Clear canvas
     socket.on('draw:clear', ({ roomCode }) => {
         if (!roomCode) return;
+
+        const room = rooms.get(roomCode);
+        if (!room) return;
+
+        // Verify the sender is the current assigned drawer
+        if (room.currentDrawer !== socket.id) {
+            return;
+        }
+
+        // Keep room isolation: verify player is registered in this room
+        const isPlayerInRoom = room.players.some(p => p.socketId === socket.id);
+        if (!isPlayerInRoom) return;
+
         roomCanvases.set(roomCode, []);
-        socket.to(roomCode).emit('draw:clear');
+
+        // Broadcast clear event to all clients in the room including the sender (the drawer)
+        io.to(roomCode).emit('draw:clear');
     });
 
     // Automatically clean up memory when a room gets deleted from room.socket.js

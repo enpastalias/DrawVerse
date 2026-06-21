@@ -24,9 +24,9 @@ export default function Lobby() {
 
         socket.on('room:update', handleRoomUpdate);
         socket.on('room:error', handleRoomError);
-        socket.on('game:started', () => {
-            if (room?.roomCode) {
-                navigate(`/game/${room.roomCode}`);
+        socket.on('game:started', ({ roomCode } = {}) => {
+            if (roomCode) {
+                navigate(`/game/${roomCode}`);
             }
         });
 
@@ -35,7 +35,7 @@ export default function Lobby() {
             socket.off('room:error', handleRoomError);
             socket.off('game:started');
         };
-    }, [socket, navigate, room]);
+    }, [socket, navigate]);
 
     const handleCreateRoom = () => {
         if (!displayUsername) return setError('Please enter a username or Login first');

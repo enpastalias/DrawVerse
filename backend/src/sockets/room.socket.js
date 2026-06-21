@@ -1,14 +1,38 @@
+import { getRandomWords } from '../utils/words.js';
+
 // In-memory room storage
-const rooms = new Map();
+export const rooms = new Map();
+
+/**
+ * Broadcasts room state to all clients in the room securely.
+ * Redacts secret information (wordOptions and currentWord) from players who are not the current drawer.
+ */
+export const emitRoomUpdate = (io, roomCode) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    // Get all sockets currently in the room
+    const roomSockets = io.sockets.adapter.rooms.get(roomCode);
+    if (roomSockets) {
+        for (const socketId of roomSockets) {
+            const clientSocket = io.sockets.sockets.get(socketId);
+            if (clientSocket) {
+                // Perform a shallow clone of the room state
+                const customizedRoom = { ...room };
+
+                // Strip secret fields if this socket is NOT the current drawer
+                if (room.currentDrawer !== socketId) {
+                    delete customizedRoom.wordOptions;
+                    delete customizedRoom.currentWord;
+                }
+
+                clientSocket.emit('room:update', customizedRoom);
+            }
+        }
+    }
+};
 
 export const registerRoomHandlers = (io, socket) => {
-    const emitRoomUpdate = (roomCode) => {
-        const room = rooms.get(roomCode);
-        if (room) {
-            io.to(roomCode).emit('room:update', room);
-        }
-    };
-
     socket.on('room:create', ({ username, userId }, callback) => {
         try {
             // Generate simple room code
@@ -28,7 +52,7 @@ export const registerRoomHandlers = (io, socket) => {
             socket.roomCode = roomCode; // Store on socket instance
 
             socket.emit('room:created', { roomCode });
-            emitRoomUpdate(roomCode);
+            emitRoomUpdate(io, roomCode);
 
             if (callback) callback({ success: true, roomCode });
         } catch (err) {
@@ -65,8 +89,29 @@ export const registerRoomHandlers = (io, socket) => {
             socket.emit('room:joined', { roomCode });
             socket.to(roomCode).emit('room:player_joined', player);
 
-            emitRoomUpdate(roomCode);
+            emitRoomUpdate(io, roomCode);
             if (callback) callback({ success: true, roomCode });
+        } catch (err) {
+            if (callback) callback({ success: false, message: 'Server error' });
+        }
+    });
+
+    socket.on('room:get', ({ roomCode }, callback) => {
+        try {
+            const room = rooms.get(roomCode);
+            if (room) {
+                // Emit customized room state to the single socket requesting it
+                const customizedRoom = { ...room };
+                if (room.currentDrawer !== socket.id) {
+                    delete customizedRoom.wordOptions;
+                    delete customizedRoom.currentWord;
+                }
+                socket.emit('room:update', customizedRoom);
+
+                if (callback) callback({ success: true, room: customizedRoom });
+            } else {
+                if (callback) callback({ success: false, message: 'Room not found' });
+            }
         } catch (err) {
             if (callback) callback({ success: false, message: 'Server error' });
         }
@@ -82,9 +127,18 @@ export const registerRoomHandlers = (io, socket) => {
             return socket.emit('room:error', { message: 'Only host can start the game' });
         }
 
+        console.log(`[game:start] BEFORE: roomId: ${roomCode}, socket.id: ${socket.id}, players: ${JSON.stringify(room.players)}, hostId: ${room.host}`);
+
         room.status = 'playing';
-        io.to(roomCode).emit('room:update', room);
-        io.to(roomCode).emit('game:started');
+        room.currentDrawer = room.host; // Assign the host as the initial drawer
+        room.gameStatus = 'word_selection'; // Update game state status to word_selection
+        room.currentWord = null;
+        room.wordOptions = getRandomWords(3); // Choose 3 random options
+
+        console.log(`[game:start] AFTER: roomId: ${roomCode}, socket.id: ${socket.id}, players: ${JSON.stringify(room.players)}, hostId: ${room.host}, currentDrawer: ${room.currentDrawer}, options: ${JSON.stringify(room.wordOptions)}`);
+
+        emitRoomUpdate(io, roomCode);
+        io.to(roomCode).emit('game:started', { roomCode });
     });
 
     socket.on('room:leave', () => {
@@ -113,7 +167,7 @@ const handleDisconnect = (io, socket) => {
                 room.players[0].isHost = true;
             }
             socket.to(roomCode).emit('room:player_left', { socketId: socket.id });
-            io.to(roomCode).emit('room:update', room);
+            emitRoomUpdate(io, roomCode);
         }
     }
 
