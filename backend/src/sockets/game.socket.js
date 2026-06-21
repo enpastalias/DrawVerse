@@ -37,6 +37,11 @@ export const registerGameHandlers = (io, socket) => {
             room.currentWord = word;
             room.gameStatus = 'drawing';
 
+            // Reset correct guess flag for all players
+            room.players.forEach(p => {
+                p.hasGuessed = false;
+            });
+
             // Emit word:selected event to all room players securely
             const roomSockets = io.sockets.adapter.rooms.get(roomCode);
             if (roomSockets) {
@@ -59,6 +64,55 @@ export const registerGameHandlers = (io, socket) => {
         } catch (err) {
             console.error('Error in word:select:', err);
             if (callback) callback({ success: false, message: 'Server error' });
+        }
+    });
+
+    socket.on('guess:send', ({ roomCode, guess }) => {
+        try {
+            if (!roomCode || !guess) return;
+
+            const room = rooms.get(roomCode);
+            if (!room) return;
+
+            // Verify game status is "drawing"
+            if (room.status !== 'playing' || room.gameStatus !== 'drawing') return;
+
+            // Find matching player
+            const player = room.players.find(p => p.socketId === socket.id);
+            if (!player) return;
+
+            // Security: drawer cannot guess
+            if (room.currentDrawer === socket.id) return;
+
+            // Security: player who already guessed cannot guess again
+            if (player.hasGuessed) return;
+
+            const trimmedGuess = guess.trim();
+            if (!trimmedGuess) return;
+
+            const cleanedGuess = trimmedGuess.toLowerCase();
+            const cleanedWord = room.currentWord.trim().toLowerCase();
+
+            if (cleanedGuess === cleanedWord) {
+                player.hasGuessed = true;
+
+                // Broadcast correct guess
+                io.to(roomCode).emit('guessed:correct', {
+                    username: player.username,
+                    message: `${player.username} guessed the word!`
+                });
+
+                // Broadcast room update so players list updates correct state
+                emitRoomUpdate(io, roomCode);
+            } else {
+                // Broadcast wrong guess
+                io.to(roomCode).emit('guess:message', {
+                    username: player.username,
+                    guess: trimmedGuess
+                });
+            }
+        } catch (err) {
+            console.error('Error in guess:send:', err);
         }
     });
 };

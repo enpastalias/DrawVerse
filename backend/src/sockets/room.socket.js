@@ -41,7 +41,7 @@ export const registerRoomHandlers = (io, socket) => {
             const newRoom = {
                 roomCode,
                 host: socket.id, // For now use socket.id as host identifier
-                players: [{ socketId: socket.id, username, userId, isHost: true }],
+                players: [{ socketId: socket.id, username, userId, isHost: true, hasGuessed: false }],
                 maxPlayers: 8,
                 status: 'waiting',
                 settings: { rounds: 3, drawTime: 80 }
@@ -80,7 +80,7 @@ export const registerRoomHandlers = (io, socket) => {
                 return socket.emit('room:error', { message: 'Game already playing' });
             }
 
-            const player = { socketId: socket.id, username, userId, isHost: false };
+            const player = { socketId: socket.id, username, userId, isHost: false, hasGuessed: false };
             room.players.push(player);
 
             socket.join(roomCode);
@@ -134,6 +134,9 @@ export const registerRoomHandlers = (io, socket) => {
         room.gameStatus = 'word_selection'; // Update game state status to word_selection
         room.currentWord = null;
         room.wordOptions = getRandomWords(3); // Choose 3 random options
+        room.players.forEach(p => {
+            p.hasGuessed = false;
+        });
 
         console.log(`[game:start] AFTER: roomId: ${roomCode}, socket.id: ${socket.id}, players: ${JSON.stringify(room.players)}, hostId: ${room.host}, currentDrawer: ${room.currentDrawer}, options: ${JSON.stringify(room.wordOptions)}`);
 
