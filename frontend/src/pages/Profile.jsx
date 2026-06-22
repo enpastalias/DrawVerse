@@ -5,21 +5,28 @@ import StatusBadge from '../components/StatusBadge';
 
 export default function Profile() {
     const [profileData, setProfileData] = useState(null);
+    const [matches, setMatches] = useState([]);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const fetchProfile = async () => {
+        const fetchProfileAndHistory = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await api.get('/users/profile', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setProfileData(res.data);
+                const headers = { Authorization: `Bearer ${token}` };
+                
+                const [profileRes, historyRes] = await Promise.all([
+                    api.get('/users/profile', { headers }),
+                    api.get('/history', { headers })
+                ]);
+                
+                setProfileData(profileRes.data);
+                setMatches(historyRes.data);
             } catch (err) {
-                setError('Failed to load profile');
+                console.error(err);
+                setError('Failed to load profile or history');
             }
         };
-        fetchProfile();
+        fetchProfileAndHistory();
     }, []);
 
     if (error) {
@@ -193,6 +200,75 @@ export default function Profile() {
                                 {winRatio}%
                             </div>
                         </Card>
+
+                        {/* Recent Matches Section */}
+                        <h3 style={{ fontSize: '1.3rem', fontWeight: '700', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', color: '#fff', marginTop: '1.5rem' }}>
+                            Recent Matches
+                        </h3>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {matches.length === 0 ? (
+                                <div style={{
+                                    textAlign: 'center',
+                                    padding: '2rem',
+                                    border: '1px dashed var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.9rem'
+                                }}>
+                                    No matches played yet. Enter the lobby to play!
+                                </div>
+                            ) : (
+                                matches.map(match => {
+                                    const localUserInMatch = match.players.find(p => p.username === profileData.username);
+                                    const isWinner = match.winner.username === profileData.username;
+                                    const rank = localUserInMatch ? localUserInMatch.rank : '-';
+                                    const score = localUserInMatch ? localUserInMatch.score : 0;
+                                    const formattedDate = new Date(match.createdAt).toLocaleDateString(undefined, {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric'
+                                    });
+
+                                    return (
+                                        <Card 
+                                            key={match._id} 
+                                            style={{ 
+                                                padding: '1.25rem 1.5rem', 
+                                                display: 'flex', 
+                                                justifyContent: 'space-between', 
+                                                alignItems: 'center',
+                                                borderLeft: isWinner ? '4px solid var(--color-success)' : '4px solid var(--border-color)',
+                                                background: 'var(--bg-surface)'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontWeight: '700', color: '#fff', fontSize: '1rem' }}>
+                                                        {isWinner ? '🏆 Victory' : `Rank #${rank}`}
+                                                    </span>
+                                                    <StatusBadge type={isWinner ? 'success' : 'cyan'} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>
+                                                        {isWinner ? 'Won' : 'Played'}
+                                                    </StatusBadge>
+                                                </div>
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                                    Room: {match.roomCode} • {formattedDate}
+                                                </span>
+                                            </div>
+                                            
+                                            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <span style={{ fontWeight: '800', color: isWinner ? '#eab308' : 'var(--color-primary-hover)', fontSize: '1.1rem' }}>
+                                                    {score} pts
+                                                </span>
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                                    Winner: {match.winner.username}
+                                                </span>
+                                            </div>
+                                        </Card>
+                                    );
+                                })
+                            )}
+                        </div>
                     </div>
 
                     <Card style={{ 

@@ -1,4 +1,7 @@
 import { getRandomWords } from '../utils/words.js';
+import { clearCanvasHistory } from './drawing.socket.js';
+import Match from '../models/Match.js';
+import User from '../models/User.js';
 
 // In-memory room storage
 export const rooms = new Map();
@@ -72,6 +75,39 @@ export const registerRoomHandlers = (io, socket) => {
                 return socket.emit('room:error', { message: 'Room not found' });
             }
 
+            // Check if player is reconnecting
+            const existingPlayerIndex = room.players.findIndex(p => 
+                (userId && userId !== 'guest' && p.userId === userId) || 
+                (p.username === username)
+            );
+
+            if (existingPlayerIndex !== -1) {
+                const existingPlayer = room.players[existingPlayerIndex];
+                const oldSocketId = existingPlayer.socketId;
+                
+                // Update socket ID
+                existingPlayer.socketId = socket.id;
+                
+                // Update host if needed
+                if (room.host === oldSocketId) {
+                    room.host = socket.id;
+                }
+                
+                // Update current drawer if needed
+                if (room.currentDrawer === oldSocketId) {
+                    room.currentDrawer = socket.id;
+                }
+
+                socket.join(roomCode);
+                socket.roomCode = roomCode;
+
+                socket.emit('room:joined', { roomCode });
+                emitRoomUpdate(io, roomCode);
+                
+                if (callback) callback({ success: true, roomCode, reconnected: true });
+                return;
+            }
+
             if (room.players.length >= room.maxPlayers) {
                 if (callback) callback({ success: false, message: 'Room is full' });
                 return socket.emit('room:error', { message: 'Room is full' });
@@ -121,7 +157,7 @@ export const registerRoomHandlers = (io, socket) => {
         }
     });
 
-    socket.on('room:start', () => {
+    socket.on('room:start', (customSettings) => {
         const roomCode = socket.roomCode;
         if (!roomCode) return;
         const room = rooms.get(roomCode);
@@ -131,9 +167,18 @@ export const registerRoomHandlers = (io, socket) => {
             return socket.emit('room:error', { message: 'Only host can start the game' });
         }
 
+        if (customSettings) {
+            room.settings = {
+                rounds: parseInt(customSettings.rounds) || 3,
+                drawTime: parseInt(customSettings.drawTime) || 80
+            };
+        }
+
         console.log(`[game:start] BEFORE: roomId: ${roomCode}, socket.id: ${socket.id}, players: ${JSON.stringify(room.players)}, hostId: ${room.host}`);
 
         room.status = 'playing';
+        room.currentRound = 1;
+        room.drawerIndex = 0;
         room.currentDrawer = room.host; // Assign the host as the initial drawer
         room.gameStatus = 'word_selection'; // Update game state status to word_selection
         room.currentWord = null;
@@ -166,19 +211,62 @@ const handleDisconnect = (io, socket) => {
 
     const room = rooms.get(roomCode);
     if (room) {
-        room.players = room.players.filter(p => p.socketId !== socket.id);
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+        const player = playerIndex !== -1 ? room.players[playerIndex] : null;
 
-        if (room.players.length === 0) {
-            stopRoomTimer(roomCode);
-            rooms.delete(roomCode); // Clean up empty rooms
-        } else {
-            // Re-assign host if host left
-            if (room.host === socket.id) {
-                room.host = room.players[0].socketId;
-                room.players[0].isHost = true;
+        if (player) {
+            room.players = room.players.filter(p => p.socketId !== socket.id);
+
+            if (room.players.length === 0) {
+                stopRoomTimer(roomCode);
+                clearCanvasHistory(roomCode);
+                rooms.delete(roomCode); // Clean up empty rooms
+            } else {
+                // Re-assign host if host left
+                if (room.host === socket.id) {
+                    room.host = room.players[0].socketId;
+                    room.players[0].isHost = true;
+                }
+
+                socket.to(roomCode).emit('room:player_left', { socketId: socket.id });
+
+                if (room.status === 'playing') {
+                    // Handle active drawer disconnecting
+                    if (room.currentDrawer === socket.id) {
+                        stopRoomTimer(roomCode);
+                        io.to(roomCode).emit('guess:message', {
+                            username: 'System',
+                            guess: `${player.username} (Drawer) left the room. Advancing turn.`
+                        });
+
+                        // Adjust drawerIndex since array size changed
+                        if (room.drawerIndex >= room.players.length) {
+                            room.drawerIndex = 0;
+                        }
+
+                        // Advance the game flow without incrementing drawerIndex
+                        advanceGameFlow(io, roomCode, false);
+                    } else {
+                        // If it's a guesser who left, adjust drawer index if they were before the current drawer
+                        if (playerIndex < room.drawerIndex) {
+                            room.drawerIndex -= 1;
+                        }
+
+                        // Check if remaining guessers have all guessed correctly
+                        const guessers = room.players.filter(p => p.socketId !== room.currentDrawer);
+                        const allGuessed = guessers.length > 0 && guessers.every(p => p.hasGuessed);
+
+                        if (allGuessed && room.gameStatus === 'drawing') {
+                            stopRoomTimer(roomCode);
+                            endRound(io, roomCode);
+                        } else {
+                            emitRoomUpdate(io, roomCode);
+                        }
+                    }
+                } else {
+                    emitRoomUpdate(io, roomCode);
+                }
             }
-            socket.to(roomCode).emit('room:player_left', { socketId: socket.id });
-            emitRoomUpdate(io, roomCode);
         }
     }
 
@@ -221,6 +309,13 @@ export const endRound = (io, roomCode) => {
         word: room.currentWord,
         roundScores: room.roundScores || {}
     });
+
+    // Set timer for next turn transition (8 seconds intermission)
+    setTimeout(() => {
+        advanceGameFlow(io, roomCode).catch(err => {
+            console.error('Error advancing game flow:', err);
+        });
+    }, 8000);
 };
 
 export const startRoomTimer = (io, roomCode) => {
@@ -265,4 +360,104 @@ export const startRoomTimer = (io, roomCode) => {
     }, 1000);
 
     roomIntervals.set(roomCode, interval);
+};
+
+export const advanceGameFlow = async (io, roomCode, shouldIncrementDrawer = true) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    if (room.status !== 'playing') return;
+
+    if (shouldIncrementDrawer) {
+        room.drawerIndex += 1;
+    }
+
+    if (room.drawerIndex >= room.players.length) {
+        room.currentRound += 1;
+        room.drawerIndex = 0;
+    }
+
+    if (room.currentRound > (room.settings?.rounds || 3)) {
+        await handleGameOver(io, roomCode);
+    } else {
+        if (room.players.length === 0) {
+            rooms.delete(roomCode);
+            clearCanvasHistory(roomCode);
+            return;
+        }
+
+        const nextPlayer = room.players[room.drawerIndex];
+        room.currentDrawer = nextPlayer.socketId;
+        room.gameStatus = 'word_selection';
+        room.currentWord = null;
+        room.wordOptions = getRandomWords(3);
+        
+        room.players.forEach(p => {
+            p.hasGuessed = false;
+        });
+
+        clearCanvasHistory(roomCode);
+        io.to(roomCode).emit('draw:clear');
+        emitRoomUpdate(io, roomCode);
+    }
+};
+
+export const handleGameOver = async (io, roomCode) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    room.status = 'game_over';
+    room.gameStatus = 'game_over';
+
+    // Sort players by score to calculate rankings
+    const rankedPlayers = [...room.players]
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .map((p, idx) => ({
+            userId: p.userId,
+            username: p.username,
+            score: p.score || 0,
+            rank: idx + 1
+        }));
+
+    const winnerPlayer = rankedPlayers[0];
+
+    try {
+        const matchData = {
+            roomCode,
+            players: rankedPlayers,
+            rounds: room.settings?.rounds || 3,
+            winner: {
+                username: winnerPlayer.username,
+                userId: winnerPlayer.userId !== 'guest' ? winnerPlayer.userId : undefined,
+                score: winnerPlayer.score
+            }
+        };
+
+        const savedMatch = await Match.create(matchData);
+        console.log(`[game:over] Match persisted successfully: ${savedMatch._id}`);
+
+        // Update statistics for all registered players in the room
+        for (const p of room.players) {
+            if (p.userId && p.userId !== 'guest') {
+                const isWinner = p.username === winnerPlayer.username;
+                await User.findByIdAndUpdate(p.userId, {
+                    $inc: {
+                        totalMatches: 1,
+                        matchesWon: isWinner ? 1 : 0
+                    }
+                });
+                console.log(`[game:over] Updated statistics for user ${p.username}`);
+            }
+        }
+    } catch (err) {
+        console.error('[game:over] Error saving match or updating stats:', err);
+    }
+
+    // Broadcast game:over event to all clients
+    io.to(roomCode).emit('game:over', {
+        rankings: rankedPlayers,
+        winner: winnerPlayer,
+        scores: room.scores
+    });
+
+    emitRoomUpdate(io, roomCode);
 };

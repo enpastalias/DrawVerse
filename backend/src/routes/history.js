@@ -1,8 +1,9 @@
 import express from 'express';
+import { getMyHistory } from '../controllers/historyController.js';
+import { protect } from '../middlewares/authMiddleware.js';
+
 const router = express.Router();
 
-router.get('/', (req, res) => {
-    res.json({ message: 'Match history route' });
-});
+router.get('/', protect, getMyHistory);
 
 export default router;

@@ -1,6 +1,10 @@
 import { rooms } from './room.socket.js';
 
-const roomCanvases = new Map();
+export const roomCanvases = new Map();
+
+export const clearCanvasHistory = (roomCode) => {
+    roomCanvases.delete(roomCode);
+};
 
 export const registerDrawingHandlers = (io, socket) => {
     // Send current canvas state when someone requests it

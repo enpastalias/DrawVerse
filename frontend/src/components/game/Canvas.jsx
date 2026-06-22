@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SocketContext } from '../../context/SocketContext';
 import Button from '../Button';
 import Card from '../Card';
@@ -10,6 +11,7 @@ export default function Canvas({ roomCode }) {
     const canvasRef = useRef(null);
     const messagesEndRef = useRef(null);
     const { socket } = useContext(SocketContext);
+    const navigate = useNavigate();
 
     const [isDrawing, setIsDrawing] = useState(false);
     const [color, setColor] = useState('#000000');
@@ -19,6 +21,7 @@ export default function Canvas({ roomCode }) {
     const [wordMessage, setWordMessage] = useState('');
     const [timer, setTimer] = useState(0);
     const [roundEndData, setRoundEndData] = useState(null);
+    const [gameOverData, setGameOverData] = useState(null);
 
     // Guessing/Chat States
     const [messages, setMessages] = useState([]);
@@ -138,6 +141,10 @@ export default function Canvas({ roomCode }) {
             socket.on('round:end', (data) => {
                 setRoundEndData(data);
             });
+
+            socket.on('game:over', (data) => {
+                setGameOverData(data);
+            });
         }
 
         return () => {
@@ -152,6 +159,7 @@ export default function Canvas({ roomCode }) {
                 socket.off('guessed:correct');
                 socket.off('timer:update');
                 socket.off('round:end');
+                socket.off('game:over');
             }
         };
     }, [socket, roomCode]);
@@ -164,6 +172,7 @@ export default function Canvas({ roomCode }) {
             setWordMessage('');
             setRoundEndData(null);
             setTimer(0);
+            setGameOverData(null);
         }
     }, [room?.gameStatus]);
 
@@ -264,6 +273,126 @@ export default function Canvas({ roomCode }) {
             y: clientY - rect.top
         };
     };
+
+    const handleReturnToLobby = () => {
+        if (socket) {
+            socket.emit('room:leave');
+        }
+        navigate('/lobby');
+    };
+
+    if (room?.gameStatus === 'game_over' || room?.status === 'game_over') {
+        const sortedPlayers = room.players ? [...room.players].sort((a, b) => (b.score || 0) - (a.score || 0)) : [];
+        const winner = sortedPlayers[0];
+
+        return (
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                gap: '2rem',
+                padding: '2rem',
+                animation: 'fadeIn 0.6s ease-out forwards',
+                maxWidth: '600px',
+                margin: '0 auto',
+                width: '100%'
+            }}>
+                <Card style={{
+                    width: '100%',
+                    padding: '3rem 2rem',
+                    textAlign: 'center',
+                    border: '1.5px solid var(--border-color)',
+                    background: 'var(--bg-surface)',
+                    boxShadow: 'var(--glow-shadow)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '1.5rem'
+                }} glow={true}>
+                    <div style={{
+                        background: 'rgba(139, 92, 246, 0.12)',
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1.5px solid rgba(139, 92, 246, 0.3)',
+                        fontSize: '3rem',
+                        animation: 'bounceSlow 3s infinite ease-in-out'
+                    }}>
+                        👑
+                    </div>
+
+                    <div>
+                        <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.25rem', background: 'linear-gradient(135deg, #fff 40%, #eab308 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            Match Finished!
+                        </h2>
+                        {winner && (
+                            <p style={{ color: 'var(--color-secondary)', fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>
+                                Winner: {winner.username} ({winner.score} pts)
+                            </p>
+                        )}
+                    </div>
+
+                    <div style={{ width: '100%', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginBottom: '1.25rem', color: '#fff', textAlign: 'left' }}>
+                            Final Rankings
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {sortedPlayers.map((p, idx) => {
+                                const isWinner = idx === 0;
+                                return (
+                                    <div 
+                                        key={p.socketId} 
+                                        style={{ 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            alignItems: 'center', 
+                                            padding: '0.75rem 1.25rem', 
+                                            background: isWinner ? 'rgba(234, 179, 8, 0.08)' : 'rgba(255,255,255,0.02)', 
+                                            borderRadius: '8px', 
+                                            border: isWinner ? '1.5px solid rgba(234, 179, 8, 0.3)' : '1px solid var(--border-color)',
+                                            boxShadow: isWinner ? '0 0 15px rgba(234, 179, 8, 0.05)' : 'none'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <span style={{ 
+                                                fontWeight: '800', 
+                                                fontSize: '1.1rem', 
+                                                color: isWinner ? '#eab308' : 'var(--text-muted)',
+                                                width: '24px'
+                                            }}>
+                                                #{idx + 1}
+                                            </span>
+                                            <span style={{ fontWeight: '700', fontSize: '1rem', color: '#fff' }}>
+                                                {p.username} {p.socketId === socket?.id && '(You)'}
+                                            </span>
+                                        </div>
+                                        <span style={{ fontWeight: '800', fontSize: '1.1rem', color: isWinner ? '#eab308' : 'var(--color-primary-hover)' }}>
+                                            {p.score || 0} pts
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div style={{ marginTop: '1.5rem', width: '100%' }}>
+                        <Button 
+                            variant="primary" 
+                            onClick={handleReturnToLobby} 
+                            style={{ width: '100%', padding: '0.9rem', fontSize: '1.05rem' }}
+                        >
+                            Return to Lobby
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', gap: '1rem' }}>

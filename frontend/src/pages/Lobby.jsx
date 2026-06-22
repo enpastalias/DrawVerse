@@ -17,6 +17,8 @@ export default function Lobby() {
     const [room, setRoom] = useState(null);
     const [error, setError] = useState(null);
     const [copied, setCopied] = useState(false);
+    const [rounds, setRounds] = useState(3);
+    const [drawTime, setDrawTime] = useState(80);
 
     const displayUsername = user ? user.username : localUsername;
 
@@ -176,13 +178,64 @@ export default function Lobby() {
                             
                             {isHost ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-                                        You are the host of this room. When everyone has joined, click the button below to launch the match.
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5', margin: 0 }}>
+                                        You are the host of this room. When everyone has joined, set the game parameters and click the button below to launch the match.
                                     </p>
+                                    
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                Rounds
+                                            </label>
+                                            <input 
+                                                type="number" 
+                                                min="1" 
+                                                max="10" 
+                                                value={rounds} 
+                                                onChange={e => setRounds(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                                style={{
+                                                    background: 'rgba(255, 255, 255, 0.03)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    color: '#fff',
+                                                    padding: '0.6rem 0.75rem',
+                                                    fontSize: '0.95rem',
+                                                    fontWeight: '600',
+                                                    outline: 'none',
+                                                    transition: 'border-color 0.2s'
+                                                }}
+                                            />
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                Time (sec)
+                                            </label>
+                                            <input 
+                                                type="number" 
+                                                min="10" 
+                                                max="180" 
+                                                value={drawTime} 
+                                                onChange={e => setDrawTime(Math.max(10, Math.min(180, parseInt(e.target.value) || 10)))}
+                                                style={{
+                                                    background: 'rgba(255, 255, 255, 0.03)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    color: '#fff',
+                                                    padding: '0.6rem 0.75rem',
+                                                    fontSize: '0.95rem',
+                                                    fontWeight: '600',
+                                                    outline: 'none',
+                                                    transition: 'border-color 0.2s'
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                    
                                     <Button 
                                         variant="primary" 
-                                        onClick={() => socket.emit('room:start')} 
-                                        style={{ width: '100%', padding: '0.9rem', fontSize: '1.05rem' }}
+                                        onClick={() => socket.emit('room:start', { rounds, drawTime })} 
+                                        style={{ width: '100%', padding: '0.9rem', fontSize: '1.05rem', marginTop: '4px' }}
                                         className="pulse-glow"
                                     >
                                         Start Game
