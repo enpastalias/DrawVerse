@@ -161,8 +161,8 @@ export default function Canvas({ roomCode }) {
         setInputText('');
     };
 
-    const handlePlayAgain = () => navigate('/lobby');
-    const handleExitRoom = () => { socket.emit('room:leave'); navigate('/lobby'); };
+    const handlePlayAgain = () => navigate('/lobby', { state: { returningRoomCode: roomCode } });
+    const handleExitRoom = () => { socket.emit('room:leave'); navigate('/lobby', { state: { exited: true } }); };
 
     if (room?.gameStatus === 'game_over' || room?.status === 'game_over') {
         const sortedPlayers = room.players ? [...room.players].sort((a, b) => (b.score || 0) - (a.score || 0)) : [];

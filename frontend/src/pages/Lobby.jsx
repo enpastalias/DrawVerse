@@ -1,12 +1,13 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { SocketContext } from '../context/SocketContext';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function Lobby() {
     const { socket } = useContext(SocketContext);
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [localUsername, setLocalUsername] = useState('');
     const [joinCode, setJoinCode] = useState('');
@@ -20,7 +21,12 @@ export default function Lobby() {
     useEffect(() => {
         if (!socket) return;
 
-        const handleRoomUpdate = (roomState) => setRoom(roomState);
+        const handleRoomUpdate = (roomState) => {
+            if (!roomState) return setRoom(null);
+            const inRoom = roomState.players.some(p => p.socketId === socket.id);
+            if (inRoom) setRoom(roomState);
+            else setRoom(null);
+        };
         const handleRoomError = (err) => setError(err.message);
 
         socket.on('room:update', handleRoomUpdate);
@@ -31,8 +37,9 @@ export default function Lobby() {
             }
         });
 
-        if (socket.roomCode) {
-            socket.emit('room:get', { roomCode: socket.roomCode });
+        const activeCode = location.state?.returningRoomCode || socket.roomCode;
+        if (activeCode && !location.state?.exited) {
+            socket.emit('room:get', { roomCode: activeCode });
         }
 
         return () => {
