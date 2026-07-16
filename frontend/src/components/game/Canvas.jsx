@@ -1,11 +1,6 @@
 import React, { useRef, useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SocketContext } from '../../context/SocketContext';
-import Button from '../Button';
-import Card from '../Card';
-import StatusBadge from '../StatusBadge';
-import Modal from '../Modal';
-import PlayerCard from '../PlayerCard';
 
 export default function Canvas({ roomCode }) {
     const canvasRef = useRef(null);
@@ -21,9 +16,6 @@ export default function Canvas({ roomCode }) {
     const [wordMessage, setWordMessage] = useState('');
     const [timer, setTimer] = useState(0);
     const [roundEndData, setRoundEndData] = useState(null);
-    const [gameOverData, setGameOverData] = useState(null);
-
-    // Guessing/Chat States
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
 
@@ -31,58 +23,35 @@ export default function Canvas({ roomCode }) {
 
     const isDrawer = room?.currentDrawer === socket?.id;
     const localPlayer = room?.players?.find(p => p.socketId === socket?.id);
-    const hasGuessedCorrectly = localPlayer?.hasGuessed || false;
 
-    // Preserved predefined colors palette
-    const colorsPalette = [
-        '#000000', // Black
-        '#ffffff', // White
-        '#ef4444', // Red
-        '#f97316', // Orange
-        '#eab308', // Yellow
-        '#22c55e', // Green
-        '#3b82f6', // Blue
-        '#a855f7', // Purple
-        '#ec4899', // Pink
-    ];
+    const colorsPalette = ['#000000', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
 
-        // Auto-resize logic (improved responsive canvas scaling)
         const handleResize = () => {
             const parent = canvas.parentElement;
             if (!parent) return;
-
-            // Save canvas content
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = canvas.width;
             tempCanvas.height = canvas.height;
             const tempCtx = tempCanvas.getContext('2d');
             tempCtx.drawImage(canvas, 0, 0);
 
-            // Resize
             canvas.width = parent.clientWidth;
             canvas.height = parent.clientHeight || 450;
-
-            // Redraw background
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Restore canvas state
             ctx.drawImage(tempCanvas, 0, 0);
         };
-
         window.addEventListener('resize', handleResize);
-        handleResize(); // Initial resize
+        handleResize();
 
-        // Initial background fill to white
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Socket Handlers
         const drawLine = ({ x0, y0, x1, y1, color, size }) => {
             ctx.beginPath();
             ctx.moveTo(x0, y0);
@@ -97,54 +66,25 @@ export default function Canvas({ roomCode }) {
             socket.emit('room:get', { roomCode });
             socket.emit('draw:request_history', { roomCode });
 
-            socket.on('room:update', (roomState) => {
-                setRoom(roomState);
-            });
-
+            socket.on('room:update', setRoom);
             socket.on('word:selected', (data) => {
-                if (data.word) {
-                    setSelectedWord(data.word);
-                } else if (data.message) {
-                    setWordMessage(data.message);
-                }
+                if (data.word) setSelectedWord(data.word);
+                else if (data.message) setWordMessage(data.message);
             });
-
             socket.on('draw:history', (lines) => {
-                // Clear to white first
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 lines.forEach(drawLine);
             });
-
-            socket.on('draw:line', (line) => {
-                drawLine(line);
-            });
-
+            socket.on('draw:line', drawLine);
             socket.on('draw:clear', () => {
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             });
-
-            // New Guess Handlers
-            socket.on('guess:message', (data) => {
-                setMessages((prev) => [...prev, { ...data, type: 'guess', id: Date.now() + Math.random() }]);
-            });
-
-            socket.on('guessed:correct', (data) => {
-                setMessages((prev) => [...prev, { ...data, type: 'correct', id: Date.now() + Math.random() }]);
-            });
-
-            socket.on('timer:update', ({ time }) => {
-                setTimer(time);
-            });
-
-            socket.on('round:end', (data) => {
-                setRoundEndData(data);
-            });
-
-            socket.on('game:over', (data) => {
-                setGameOverData(data);
-            });
+            socket.on('guess:message', (data) => setMessages(prev => [...prev, { ...data, type: 'guess', id: Date.now() + Math.random() }]));
+            socket.on('guessed:correct', (data) => setMessages(prev => [...prev, { ...data, type: 'correct', id: Date.now() + Math.random() }]));
+            socket.on('timer:update', ({ time }) => setTimer(time));
+            socket.on('round:end', setRoundEndData);
         }
 
         return () => {
@@ -159,12 +99,10 @@ export default function Canvas({ roomCode }) {
                 socket.off('guessed:correct');
                 socket.off('timer:update');
                 socket.off('round:end');
-                socket.off('game:over');
             }
         };
     }, [socket, roomCode]);
 
-    // Reset round-specific parameters when switching back to word selection
     useEffect(() => {
         if (room?.gameStatus === 'word_selection') {
             setMessages([]);
@@ -172,735 +110,200 @@ export default function Canvas({ roomCode }) {
             setWordMessage('');
             setRoundEndData(null);
             setTimer(0);
-            setGameOverData(null);
         }
     }, [room?.gameStatus]);
 
-    // Auto-scroll messages to the bottom
     useEffect(() => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
+        if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    const getMousePos = (e) => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        let clientX = e.clientX, clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+        }
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    };
 
     const startDrawing = (e) => {
         if (!isDrawer || room?.gameStatus !== 'drawing') return;
         setIsDrawing(true);
-        const pos = getMousePos(e);
-        prevPos.current = pos;
+        prevPos.current = getMousePos(e);
     };
 
     const draw = (e) => {
         if (!isDrawing || !isDrawer || room?.gameStatus !== 'drawing') return;
-
         const currentPos = getMousePos(e);
+        const line = { x0: prevPos.current.x, y0: prevPos.current.y, x1: currentPos.x, y1: currentPos.y, color, size: brushSize };
 
-        const lineData = {
-            x0: prevPos.current.x,
-            y0: prevPos.current.y,
-            x1: currentPos.x,
-            y1: currentPos.y,
-            color,
-            size: brushSize
-        };
-
-        // Draw locally
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvasRef.current.getContext('2d');
         ctx.beginPath();
-        ctx.moveTo(lineData.x0, lineData.y0);
-        ctx.lineTo(lineData.x1, lineData.y1);
-        ctx.strokeStyle = lineData.color;
-        ctx.lineWidth = lineData.size;
+        ctx.moveTo(line.x0, line.y0);
+        ctx.lineTo(line.x1, line.y1);
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = line.size;
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        // Emit to server
-        if (socket) {
-            socket.emit('draw:line', { roomCode, line: lineData });
-        }
-
+        socket.emit('draw:line', { roomCode, line });
         prevPos.current = currentPos;
     };
 
-    const stopDrawing = () => {
-        setIsDrawing(false);
-    };
-
-    const handleClear = () => {
-        if (socket && isDrawer && room?.gameStatus === 'drawing') {
-            socket.emit('draw:clear', { roomCode });
-        }
-    };
-
-    const handleSelectWord = (word) => {
-        if (socket) {
-            socket.emit('word:select', { roomCode, word }, (res) => {
-                if (res && res.success) {
-                    setSelectedWord(word);
-                } else {
-                    alert(res?.message || 'Failed to select word');
-                }
-            });
-        }
-    };
+    const stopDrawing = () => setIsDrawing(false);
+    const handleClear = () => isDrawer && socket.emit('draw:clear', { roomCode });
+    const handleSelectWord = (word) => socket.emit('word:select', { roomCode, word }, (res) => res.success ? setSelectedWord(word) : alert('Failed to select word'));
 
     const handleSendGuess = (e) => {
         e.preventDefault();
-        if (!inputText.trim() || !socket) return;
+        if (!inputText.trim()) return;
         socket.emit('guess:send', { roomCode, guess: inputText });
         setInputText('');
     };
 
-    const getMousePos = (e) => {
-        const canvas = canvasRef.current;
-        const rect = canvas.getBoundingClientRect();
-
-        let clientX = e.clientX;
-        let clientY = e.clientY;
-
-        // Support touch events
-        if (e.touches && e.touches.length > 0) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
-        }
-
-        return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
-        };
-    };
-
-    const handleReturnToLobby = () => {
-        navigate('/lobby');
-    };
+    const handlePlayAgain = () => navigate('/lobby');
+    const handleExitRoom = () => { socket.emit('room:leave'); navigate('/lobby'); };
 
     if (room?.gameStatus === 'game_over' || room?.status === 'game_over') {
         const sortedPlayers = room.players ? [...room.players].sort((a, b) => (b.score || 0) - (a.score || 0)) : [];
-        const winner = sortedPlayers[0];
-
         return (
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 1,
-                gap: '2rem',
-                padding: '2rem',
-                animation: 'fadeIn 0.6s ease-out forwards',
-                maxWidth: '600px',
-                margin: '0 auto',
-                width: '100%'
-            }}>
-                <Card style={{
-                    width: '100%',
-                    padding: '3rem 2rem',
-                    textAlign: 'center',
-                    border: '1.5px solid var(--border-color)',
-                    background: 'var(--bg-surface)',
-                    boxShadow: 'var(--glow-shadow)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '1.5rem'
-                }} glow={true}>
-                    <div style={{
-                        background: 'rgba(139, 92, 246, 0.12)',
-                        width: '80px',
-                        height: '80px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '1.5px solid rgba(139, 92, 246, 0.3)',
-                        fontSize: '3rem',
-                        animation: 'bounceSlow 3s infinite ease-in-out'
-                    }}>
-                        👑
-                    </div>
-
-                    <div>
-                        <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '0.25rem', background: 'linear-gradient(135deg, #fff 40%, #eab308 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            Match Finished!
-                        </h2>
-                        {winner && (
-                            <p style={{ color: 'var(--color-secondary)', fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>
-                                Winner: {winner.username} ({winner.score} pts)
-                            </p>
-                        )}
-                    </div>
-
-                    <div style={{ width: '100%', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginBottom: '1.25rem', color: '#fff', textAlign: 'left' }}>
-                            Final Rankings
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {sortedPlayers.map((p, idx) => {
-                                const isWinner = idx === 0;
-                                return (
-                                    <div
-                                        key={p.socketId}
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            padding: '0.75rem 1.25rem',
-                                            background: isWinner ? 'rgba(234, 179, 8, 0.08)' : 'rgba(255,255,255,0.02)',
-                                            borderRadius: '8px',
-                                            border: isWinner ? '1.5px solid rgba(234, 179, 8, 0.3)' : '1px solid var(--border-color)',
-                                            boxShadow: isWinner ? '0 0 15px rgba(234, 179, 8, 0.05)' : 'none'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <span style={{
-                                                fontWeight: '800',
-                                                fontSize: '1.1rem',
-                                                color: isWinner ? '#eab308' : 'var(--text-muted)',
-                                                width: '24px'
-                                            }}>
-                                                #{idx + 1}
-                                            </span>
-                                            <span style={{ fontWeight: '700', fontSize: '1rem', color: '#fff' }}>
-                                                {p.username} {p.socketId === socket?.id && '(You)'}
-                                            </span>
-                                        </div>
-                                        <span style={{ fontWeight: '800', fontSize: '1.1rem', color: isWinner ? '#eab308' : 'var(--color-primary-hover)' }}>
-                                            {p.score || 0} pts
-                                        </span>
-                                    </div>
-                                );
-                            })}
+            <div className="card" style={{ maxWidth: '600px', margin: '20px auto', textAlign: 'center' }}>
+                <h2>Game Over! 👑</h2>
+                <div style={{ textAlign: 'left', marginTop: '20px' }}>
+                    {sortedPlayers.map((p, idx) => (
+                        <div key={p.socketId} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #ddd' }}>
+                            <span>#{idx + 1} {p.username} {p.socketId === socket?.id && '(You)'}</span>
+                            <strong>{p.score || 0} pts</strong>
                         </div>
-                    </div>
-
-                    <div style={{ marginTop: '1.5rem', width: '100%' }}>
-                        <Button
-                            variant="primary"
-                            onClick={handleReturnToLobby}
-                            style={{ width: '100%', padding: '0.9rem', fontSize: '1.05rem' }}
-                        >
-                            Return to Lobby
-                        </Button>
-                    </div>
-                </Card>
+                    ))}
+                </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                    <button onClick={handlePlayAgain} style={{ flex: 1, backgroundColor: '#28a745' }}>Play Again</button>
+                    <button onClick={handleExitRoom} style={{ flex: 1, backgroundColor: '#dc3545' }}>Exit Room</button>
+                </div>
             </div>
         );
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '20px', height: '100%' }}>
 
-            {/* Status Header Bar */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '1rem 1.25rem',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-sm)',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                minHeight: '62px'
-            }}>
-                {room?.gameStatus === 'word_selection' ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="pulse-glow-cyan" style={{ display: 'inline-flex', width: '8px', height: '8px', background: 'var(--color-secondary)', borderRadius: '50%' }} />
-                        <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#fff' }}>
-                            {isDrawer ? 'Choose a word to start drawing' : 'Drawer is choosing a word...'}
-                        </span>
-                    </div>
-                ) : room?.gameStatus === 'drawing' ? (
-                    isDrawer ? (
+            {/* Players Panel */}
+            <div className="card" style={{ width: '250px', overflowY: 'auto' }}>
+                <h3>Players</h3>
+                <ul style={{ listStyleType: 'none', padding: 0 }}>
+                    {room?.players?.map(p => (
+                        <li key={p.socketId} style={{ padding: '10px 0', borderBottom: '1px solid #ccc' }}>
+                            <div>
+                                <strong>{p.username}</strong>
+                                {p.socketId === socket?.id ? ' (You)' : ''}
+                                {room.currentDrawer === p.socketId ? ' 🎨 Drawer' : ''}
+                            </div>
+                            <div>Score: {p.score || 0}</div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            {/* Drawing/Main Panel */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                {/* Game Header */}
+                <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px' }}>
+                    {room?.gameStatus === 'word_selection' ? (
+                        <h4>{isDrawer ? 'Choose a word to draw' : 'Drawer is choosing a word...'}</h4>
+                    ) : room?.gameStatus === 'drawing' ? (
                         <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span className="pulse-glow" style={{ display: 'inline-flex', width: '8px', height: '8px', background: 'var(--color-primary)', borderRadius: '50%' }} />
-                                <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--color-primary-hover)' }}>
-                                    YOU ARE THE DRAWER
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-primary-hover)', background: 'rgba(139,92,246,0.1)', padding: '0.3rem 0.75rem', borderRadius: '4px', border: '1px solid rgba(139,92,246,0.2)' }}>
-                                    ⏱ {timer}s
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '500' }}>You are drawing:</span>
-                                    <StatusBadge type="success" style={{ fontSize: '0.9rem', padding: '0.3rem 0.85rem' }}>
-                                        {selectedWord || room?.currentWord || '...'}
-                                    </StatusBadge>
-                                </div>
-                            </div>
+                            <h4>
+                                {isDrawer ? `Drawing: ${selectedWord}` : `Guessing: ${wordMessage}`}
+                            </h4>
+                            <h4 style={{ color: 'red' }}>Time: {timer}s</h4>
                         </>
+                    ) : room?.gameStatus === 'round_end' ? (
+                        <h4>Round Finished! Secret Word: {room?.currentWord}</h4>
                     ) : (
-                        <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span className="pulse-glow-cyan" style={{ display: 'inline-flex', width: '8px', height: '8px', background: 'var(--color-secondary)', borderRadius: '50%' }} />
-                                <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#fff' }}>
-                                    Guess the drawing
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-secondary)', background: 'rgba(6,182,212,0.1)', padding: '0.3rem 0.75rem', borderRadius: '4px', border: '1px solid rgba(6,182,212,0.2)' }}>
-                                    ⏱ {timer}s
-                                </div>
-                                <StatusBadge type="cyan" style={{ fontSize: '0.85rem' }}>
-                                    {wordMessage || 'Drawer selected a word'}
-                                </StatusBadge>
-                            </div>
-                        </>
-                    )
-                ) : room?.gameStatus === 'round_end' ? (
-                    <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ display: 'inline-flex', width: '8px', height: '8px', background: 'var(--color-secondary)', borderRadius: '50%' }} />
-                            <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#fff' }}>
-                                Round Finished!
-                            </span>
+                        <h4>Waiting to start...</h4>
+                    )}
+                </div>
+
+                {/* Modals for Word Selection and Round End */}
+                {room?.gameStatus === 'word_selection' && isDrawer && (
+                    <div className="card" style={{ backgroundColor: '#fff3cd' }}>
+                        <h4>Select a word:</h4>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                            {room?.wordOptions?.map(word => (
+                                <button key={word} onClick={() => handleSelectWord(word)} style={{ flex: 1 }}>{word}</button>
+                            ))}
                         </div>
-                        <StatusBadge type="cyan" style={{ fontSize: '0.85rem' }}>
-                            Secret Word: {room?.currentWord}
-                        </StatusBadge>
-                    </>
-                ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ display: 'inline-flex', width: '8px', height: '8px', background: 'var(--text-muted)', borderRadius: '50%' }} />
-                        <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
-                            Waiting for game to start...
-                        </span>
+                    </div>
+                )}
+                {roundEndData && (
+                    <div className="card" style={{ backgroundColor: '#d1ecf1' }}>
+                        <h4>Round Over! Word was: {roundEndData.word}</h4>
+                    </div>
+                )}
+
+                {/* Canvas Container */}
+                <div style={{ flex: 1, border: '2px solid #ccc', backgroundColor: '#fff', minHeight: '400px' }}>
+                    <canvas
+                        ref={canvasRef}
+                        onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseOut={stopDrawing}
+                        onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing}
+                        style={{ display: 'block', touchAction: 'none', width: '100%', height: '100%', cursor: isDrawer ? 'crosshair' : 'default' }}
+                    />
+                </div>
+
+                {/* Toolbar */}
+                {isDrawer && room?.gameStatus === 'drawing' && (
+                    <div className="card" style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                            {colorsPalette.map(c => (
+                                <div
+                                    key={c}
+                                    onClick={() => setColor(c)}
+                                    style={{ width: '25px', height: '25px', backgroundColor: c, border: color === c ? '2px solid black' : '1px solid #ccc', cursor: 'pointer' }}
+                                />
+                            ))}
+                        </div>
+                        <div>
+                            <label>Size: </label>
+                            <input type="range" min="1" max="50" value={brushSize} onChange={e => setBrushSize(parseInt(e.target.value))} />
+                        </div>
+                        <button onClick={handleClear} style={{ backgroundColor: '#dc3545', marginLeft: 'auto' }}>Clear</button>
                     </div>
                 )}
             </div>
 
-            {/* Main Interactive Board Display */}
-            <div style={{
-                display: 'flex',
-                flexDirection: 'row',
-                gap: '1.25rem',
-                flex: 1,
-                minHeight: 0
-            }} className="game-workspace-split">
+            {/* Chat Panel */}
+            <div className="card" style={{ width: '250px', display: 'flex', flexDirection: 'column' }}>
+                <h3>Chat & Guesses</h3>
 
-                {/* Left Side: Players Roster */}
-                <Card style={{
-                    width: '240px',
-                    padding: '1.25rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '1rem',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-surface)',
-                    minHeight: '380px'
-                }} className="players-sidebar">
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                        🏆 Players
-                    </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
-                        {room?.players?.map(p => (
-                            <PlayerCard
-                                key={p.socketId}
-                                player={p}
-                                isLocalPlayer={p.socketId === socket?.id}
-                                isDrawer={room.currentDrawer === p.socketId}
-                            />
-                        ))}
-                    </div>
-                </Card>
-
-                {/* Center: Canvas easel */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: 3,
-                    gap: '1rem',
-                    minWidth: 0
-                }}>
-                    <div style={{
-                        flex: 1,
-                        border: '1.5px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        overflow: 'hidden',
-                        position: 'relative',
-                        background: '#ffffff',
-                        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.4)',
-                        minHeight: '350px'
-                    }}>
-
-                        {/* ROUND RESULT MODAL */}
-                        {roundEndData && (
-                            <Modal isOpen={true} title="Round Finished!">
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: 0 }}>
-                                        The secret word was:
-                                    </p>
-                                    <StatusBadge type="cyan" style={{ fontSize: '1.3rem', padding: '0.5rem 1.5rem', fontWeight: '800' }}>
-                                        {roundEndData.word}
-                                    </StatusBadge>
-                                    <div style={{ width: '100%', marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-                                        <h4 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '0.75rem', color: '#fff', textAlign: 'left' }}>
-                                            Scores Earned:
-                                        </h4>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
-                                            {room?.players?.map(p => {
-                                                const earned = roundEndData.roundScores?.[p.username] || 0;
-                                                return (
-                                                    <div key={p.socketId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                                                        <span style={{ fontWeight: '600', fontSize: '0.9rem', color: '#fff' }}>{p.username}</span>
-                                                        <span style={{ fontWeight: '700', fontSize: '0.9rem', color: earned > 0 ? '#34d399' : 'var(--text-muted)' }}>
-                                                            {earned > 0 ? `+${earned}` : '+0'}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                    <div style={{ marginTop: '1rem', width: '100%' }}>
-                                        <Button variant="primary" onClick={() => setRoundEndData(null)} style={{ width: '100%', padding: '0.85rem' }}>
-                                            Close
-                                        </Button>
-                                    </div>
-                                </div>
-                            </Modal>
-                        )}
-
-                        {/* WORD SELECTION MODALS */}
-                        {room?.gameStatus === 'word_selection' && (
-                            isDrawer ? (
-                                <Modal isOpen={true} title="Choose your word">
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                                        Select one of the secret words below. Once selected, your canvas will unlock and drawing will begin!
-                                    </p>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                        {room?.wordOptions?.map((word) => (
-                                            <Button
-                                                key={word}
-                                                onClick={() => handleSelectWord(word)}
-                                                variant="primary"
-                                                style={{ width: '100%', padding: '0.85rem' }}
-                                            >
-                                                {word}
-                                            </Button>
-                                        ))}
-                                    </div>
-                                </Modal>
+                <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #ccc', padding: '10px', marginBottom: '10px', backgroundColor: '#fafafa' }}>
+                    {messages.map(msg => (
+                        <div key={msg.id} style={{ marginBottom: '5px' }}>
+                            {msg.type === 'correct' ? (
+                                <strong style={{ color: 'green' }}>{msg.username} guessed the word!</strong>
                             ) : (
-                                <Modal isOpen={true} title="Drawer is choosing a word">
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
-                                        <div style={{
-                                            width: '48px',
-                                            height: '48px',
-                                            borderRadius: '50%',
-                                            border: '3px solid var(--color-secondary)',
-                                            borderTopColor: 'transparent',
-                                            animation: 'spin 1s linear infinite'
-                                        }} />
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: '500' }}>
-                                            Please wait while the drawer selects a secret word to paint...
-                                        </p>
-                                    </div>
-                                </Modal>
-                            )
-                        )}
-
-                        <canvas
-                            ref={canvasRef}
-                            onMouseDown={startDrawing}
-                            onMouseMove={draw}
-                            onMouseUp={stopDrawing}
-                            onMouseOut={stopDrawing}
-                            onTouchStart={startDrawing}
-                            onTouchMove={draw}
-                            onTouchEnd={stopDrawing}
-                            style={{
-                                display: 'block',
-                                touchAction: 'none',
-                                cursor: isDrawer && room?.gameStatus === 'drawing' ? 'crosshair' : 'default',
-                                width: '100%',
-                                height: '100%',
-                                background: '#ffffff'
-                            }}
-                        />
-                    </div>
-
-                    {/* Toolbar controls (only shown to active drawer) */}
-                    {isDrawer && room?.gameStatus === 'drawing' && (
-                        <Card style={{
-                            padding: '1.25rem 1.5rem',
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '1.5rem',
-                            border: '1px solid var(--border-color)'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                    {colorsPalette.map(c => {
-                                        const isSelected = color.toLowerCase() === c.toLowerCase();
-                                        return (
-                                            <button
-                                                key={c}
-                                                onClick={() => setColor(c)}
-                                                style={{
-                                                    width: '28px',
-                                                    height: '28px',
-                                                    borderRadius: '50%',
-                                                    background: c,
-                                                    border: isSelected
-                                                        ? '2px solid #fff'
-                                                        : c.toLowerCase() === '#ffffff'
-                                                            ? '1.5px solid rgba(0,0,0,0.15)'
-                                                            : '1.5px solid transparent',
-                                                    cursor: 'pointer',
-                                                    transition: 'transform 0.15s ease',
-                                                    transform: isSelected ? 'scale(1.2)' : 'none',
-                                                    boxShadow: isSelected
-                                                        ? '0 0 10px rgba(255,255,255,0.4), 0 2px 6px rgba(0,0,0,0.3)'
-                                                        : '0 1px 4px rgba(0,0,0,0.25)'
-                                                }}
-                                                title={c}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                                <div style={{
-                                    position: 'relative',
-                                    width: '28px',
-                                    height: '28px',
-                                    borderRadius: '50%',
-                                    overflow: 'hidden',
-                                    cursor: 'pointer',
-                                    border: '1.5px solid rgba(255,255,255,0.1)',
-                                    boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                                    background: 'linear-gradient(45deg, red, orange, yellow, green, blue, violet)'
-                                }} title="Custom Color">
-                                    <input
-                                        type="color"
-                                        value={color}
-                                        onChange={(e) => setColor(e.target.value)}
-                                        style={{
-                                            position: 'absolute',
-                                            top: '-4px',
-                                            left: '-4px',
-                                            width: '36px',
-                                            height: '36px',
-                                            border: 'none',
-                                            background: 'transparent',
-                                            cursor: 'pointer',
-                                            opacity: 0
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: '1', maxWidth: '300px', minWidth: '180px' }}>
-                                <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-                                    Size
-                                </span>
-                                <input
-                                    type="range"
-                                    min="1"
-                                    max="50"
-                                    value={brushSize}
-                                    onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                                    style={{
-                                        flex: 1,
-                                        height: '5px',
-                                        borderRadius: '5px',
-                                        background: 'rgba(255,255,255,0.1)',
-                                        outline: 'none',
-                                        WebkitAppearance: 'none',
-                                        cursor: 'pointer'
-                                    }}
-                                    title="Brush Size"
-                                />
-                                <div style={{
-                                    width: '36px',
-                                    height: '36px',
-                                    background: 'rgba(255,255,255,0.03)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '6px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    flexShrink: 0
-                                }}>
-                                    <div style={{
-                                        width: `${Math.min(26, Math.max(2, brushSize))}px`,
-                                        height: `${Math.min(26, Math.max(2, brushSize))}px`,
-                                        borderRadius: '50%',
-                                        background: color,
-                                        transition: 'width 0.1s ease, height 0.1s ease, background-color 0.2s ease',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-                                    }} />
-                                </div>
-                            </div>
-
-                            <div>
-                                <Button
-                                    variant="danger"
-                                    onClick={handleClear}
-                                    style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
-                                >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '4px', verticalAlign: 'middle', marginTop: '-2px' }}>
-                                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                    </svg>
-                                    Clear Canvas
-                                </Button>
-                            </div>
-                        </Card>
-                    )}
+                                <span><strong>{msg.username}:</strong> {msg.text}</span>
+                            )}
+                        </div>
+                    ))}
+                    <div ref={messagesEndRef} />
                 </div>
 
-                {/* Right Side: Chat / Guessing Panel */}
-                <Card style={{
-                    width: '300px',
-                    padding: '1.25rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    minHeight: '380px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-surface)'
-                }} className="guess-sidebar">
-
-                    <div style={{
-                        borderBottom: '1px solid var(--border-color)',
-                        paddingBottom: '0.75rem',
-                        marginBottom: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexShrink: 0
-                    }}>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-hover)" strokeWidth="2.5">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                            </svg>
-                            Guesses & Chat
-                        </h3>
-                    </div>
-
-                    {/* Scrollable messages box */}
-                    <div style={{
-                        flex: 1,
-                        overflowY: 'auto',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.6rem',
-                        paddingRight: '4px',
-                        marginBottom: '1rem'
-                    }}>
-                        {messages.map((m) => {
-                            if (m.type === 'correct') {
-                                return (
-                                    <div key={m.id || Math.random()} style={{
-                                        background: 'rgba(16, 185, 129, 0.12)',
-                                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        padding: '0.6rem 0.85rem',
-                                        color: '#34d399',
-                                        fontSize: '0.9rem',
-                                        fontWeight: '700',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        animation: 'slideUp 0.3s ease-out forwards',
-                                        boxShadow: 'var(--glow-shadow-success)'
-                                    }}>
-                                        <span>🏆</span>
-                                        <span>{m.message}</span>
-                                    </div>
-                                );
-                            }
-                            return (
-                                <div key={m.id || Math.random()} style={{
-                                    background: 'rgba(255, 255, 255, 0.02)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    padding: '0.6rem 0.85rem',
-                                    fontSize: '0.9rem',
-                                    animation: 'slideUp 0.3s ease-out forwards',
-                                    wordBreak: 'break-word',
-                                    lineHeight: '1.4'
-                                }}>
-                                    <strong style={{ color: 'var(--color-primary-hover)', marginRight: '6px' }}>
-                                        {m.username}:
-                                    </strong>
-                                    <span style={{ color: 'var(--text-main)' }}>{m.guess}</span>
-                                </div>
-                            );
-                        })}
-
-                        {messages.length === 0 && (
-                            <div style={{
-                                margin: 'auto',
-                                textAlign: 'center',
-                                color: 'var(--text-muted)',
-                                fontSize: '0.85rem',
-                                padding: '1rem'
-                            }}>
-                                No guesses submitted yet.
-                            </div>
-                        )}
-                        <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Guess Send Form */}
-                    <form onSubmit={handleSendGuess} style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                        <input
-                            type="text"
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            placeholder={
-                                isDrawer
-                                    ? "You are drawing..."
-                                    : hasGuessedCorrectly
-                                        ? "You guessed correctly!"
-                                        : room?.gameStatus !== 'drawing'
-                                            ? "Waiting for game..."
-                                            : "Type your guess here..."
-                            }
-                            disabled={isDrawer || hasGuessedCorrectly || room?.gameStatus !== 'drawing'}
-                            style={{
-                                padding: '0.65rem 0.85rem',
-                                fontSize: '0.9rem'
-                            }}
-                        />
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            disabled={isDrawer || hasGuessedCorrectly || room?.gameStatus !== 'drawing' || !inputText.trim()}
-                            style={{
-                                padding: '0.65rem 1rem',
-                                fontSize: '0.85rem',
-                                flexShrink: 0
-                            }}
-                        >
-                            Send
-                        </Button>
-                    </form>
-                </Card>
+                <form onSubmit={handleSendGuess} style={{ display: 'flex', gap: '5px' }}>
+                    <input
+                        type="text"
+                        value={inputText}
+                        onChange={e => setInputText(e.target.value)}
+                        placeholder="Type guess..."
+                        disabled={isDrawer || localPlayer?.hasGuessed}
+                        style={{ flex: 1 }}
+                    />
+                    <button type="submit" disabled={isDrawer || localPlayer?.hasGuessed}>Send</button>
+                </form>
             </div>
 
-            <style>{`
-                @media (max-width: 768px) {
-                    .game-workspace-split {
-                        flex-direction: column !important;
-                        height: auto !important;
-                    }
-                    .players-sidebar {
-                        width: 100% !important;
-                        min-height: 150px !important;
-                    }
-                    .guess-sidebar {
-                        width: 100% !important;
-                        min-height: 250px !important;
-                    }
-                }
-            `}</style>
         </div>
     );
 }
