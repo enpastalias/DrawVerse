@@ -11,7 +11,8 @@ export const SocketProvider = ({ children }) => {
     useEffect(() => {
         const newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000', {
             autoConnect: true,
-            reconnection: true
+            reconnection: true,
+            transports: ['websocket', 'polling']
         });
 
         setSocket(newSocket);
