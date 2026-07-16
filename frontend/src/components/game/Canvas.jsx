@@ -275,9 +275,6 @@ export default function Canvas({ roomCode }) {
     };
 
     const handleReturnToLobby = () => {
-        if (socket) {
-            socket.emit('room:leave');
-        }
         navigate('/lobby');
     };
 
@@ -345,23 +342,23 @@ export default function Canvas({ roomCode }) {
                             {sortedPlayers.map((p, idx) => {
                                 const isWinner = idx === 0;
                                 return (
-                                    <div 
-                                        key={p.socketId} 
-                                        style={{ 
-                                            display: 'flex', 
-                                            justifyContent: 'space-between', 
-                                            alignItems: 'center', 
-                                            padding: '0.75rem 1.25rem', 
-                                            background: isWinner ? 'rgba(234, 179, 8, 0.08)' : 'rgba(255,255,255,0.02)', 
-                                            borderRadius: '8px', 
+                                    <div
+                                        key={p.socketId}
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '0.75rem 1.25rem',
+                                            background: isWinner ? 'rgba(234, 179, 8, 0.08)' : 'rgba(255,255,255,0.02)',
+                                            borderRadius: '8px',
                                             border: isWinner ? '1.5px solid rgba(234, 179, 8, 0.3)' : '1px solid var(--border-color)',
                                             boxShadow: isWinner ? '0 0 15px rgba(234, 179, 8, 0.05)' : 'none'
                                         }}
                                     >
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <span style={{ 
-                                                fontWeight: '800', 
-                                                fontSize: '1.1rem', 
+                                            <span style={{
+                                                fontWeight: '800',
+                                                fontSize: '1.1rem',
                                                 color: isWinner ? '#eab308' : 'var(--text-muted)',
                                                 width: '24px'
                                             }}>
@@ -381,9 +378,9 @@ export default function Canvas({ roomCode }) {
                     </div>
 
                     <div style={{ marginTop: '1.5rem', width: '100%' }}>
-                        <Button 
-                            variant="primary" 
-                            onClick={handleReturnToLobby} 
+                        <Button
+                            variant="primary"
+                            onClick={handleReturnToLobby}
                             style={{ width: '100%', padding: '0.9rem', fontSize: '1.05rem' }}
                         >
                             Return to Lobby
@@ -396,7 +393,7 @@ export default function Canvas({ roomCode }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', gap: '1rem' }}>
-            
+
             {/* Status Header Bar */}
             <div style={{
                 display: 'flex',
@@ -502,16 +499,16 @@ export default function Canvas({ roomCode }) {
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
                         {room?.players?.map(p => (
-                            <PlayerCard 
-                                key={p.socketId} 
-                                player={p} 
+                            <PlayerCard
+                                key={p.socketId}
+                                player={p}
                                 isLocalPlayer={p.socketId === socket?.id}
                                 isDrawer={room.currentDrawer === p.socketId}
                             />
                         ))}
                     </div>
                 </Card>
-                
+
                 {/* Center: Canvas easel */}
                 <div style={{
                     display: 'flex',
@@ -530,7 +527,7 @@ export default function Canvas({ roomCode }) {
                         boxShadow: '0 12px 30px rgba(0, 0, 0, 0.4)',
                         minHeight: '350px'
                     }}>
-                        
+
                         {/* ROUND RESULT MODAL */}
                         {roundEndData && (
                             <Modal isOpen={true} title="Round Finished!">
@@ -651,16 +648,16 @@ export default function Canvas({ roomCode }) {
                                                     height: '28px',
                                                     borderRadius: '50%',
                                                     background: c,
-                                                    border: isSelected 
-                                                        ? '2px solid #fff' 
-                                                        : c.toLowerCase() === '#ffffff' 
-                                                            ? '1.5px solid rgba(0,0,0,0.15)' 
+                                                    border: isSelected
+                                                        ? '2px solid #fff'
+                                                        : c.toLowerCase() === '#ffffff'
+                                                            ? '1.5px solid rgba(0,0,0,0.15)'
                                                             : '1.5px solid transparent',
                                                     cursor: 'pointer',
                                                     transition: 'transform 0.15s ease',
                                                     transform: isSelected ? 'scale(1.2)' : 'none',
-                                                    boxShadow: isSelected 
-                                                        ? '0 0 10px rgba(255,255,255,0.4), 0 2px 6px rgba(0,0,0,0.3)' 
+                                                    boxShadow: isSelected
+                                                        ? '0 0 10px rgba(255,255,255,0.4), 0 2px 6px rgba(0,0,0,0.3)'
                                                         : '0 1px 4px rgba(0,0,0,0.25)'
                                                 }}
                                                 title={c}
@@ -742,8 +739,8 @@ export default function Canvas({ roomCode }) {
                             </div>
 
                             <div>
-                                <Button 
-                                    variant="danger" 
+                                <Button
+                                    variant="danger"
                                     onClick={handleClear}
                                     style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
                                 >
@@ -768,7 +765,7 @@ export default function Canvas({ roomCode }) {
                     border: '1px solid var(--border-color)',
                     background: 'var(--bg-surface)'
                 }} className="guess-sidebar">
-                    
+
                     <div style={{
                         borderBottom: '1px solid var(--border-color)',
                         paddingBottom: '0.75rem',
@@ -858,12 +855,12 @@ export default function Canvas({ roomCode }) {
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
                             placeholder={
-                                isDrawer 
-                                    ? "You are drawing..." 
-                                    : hasGuessedCorrectly 
-                                        ? "You guessed correctly!" 
-                                        : room?.gameStatus !== 'drawing' 
-                                            ? "Waiting for game..." 
+                                isDrawer
+                                    ? "You are drawing..."
+                                    : hasGuessedCorrectly
+                                        ? "You guessed correctly!"
+                                        : room?.gameStatus !== 'drawing'
+                                            ? "Waiting for game..."
                                             : "Type your guess here..."
                             }
                             disabled={isDrawer || hasGuessedCorrectly || room?.gameStatus !== 'drawing'}
