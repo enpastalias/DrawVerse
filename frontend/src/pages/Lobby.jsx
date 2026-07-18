@@ -169,7 +169,7 @@ export default function Lobby() {
                             value={joinCode}
                             onChange={e => setJoinCode(e.target.value.toUpperCase())}
                             placeholder="CODE"
-                            style={{ flex: 1 }}
+                            style={{ flex: 1, minWidth: 0 }}
                         />
                         <button onClick={handleJoinRoom} style={{ backgroundColor: '#28a745' }}>Join</button>
                     </div>

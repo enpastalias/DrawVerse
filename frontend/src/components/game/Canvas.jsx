@@ -298,7 +298,7 @@ export default function Canvas({ roomCode }) {
                         onChange={e => setInputText(e.target.value)}
                         placeholder="Type guess..."
                         disabled={isDrawer || localPlayer?.hasGuessed}
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, minWidth: 0 }}
                     />
                     <button type="submit" disabled={isDrawer || localPlayer?.hasGuessed}>Send</button>
                 </form>
