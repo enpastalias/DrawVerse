@@ -26,7 +26,7 @@ function App() {
 
     const navLinkStyle = ({ isActive }) => ({
         textDecoration: 'none',
-        color: isActive ? '#ffffff' : '#9ca3af',
+        color: isActive ? '#1a1b1e' : '#4b5563',
         marginRight: '24px',
         fontWeight: '500',
         fontSize: '15px',
@@ -35,10 +35,10 @@ function App() {
 
     return (
         <div>
-            <nav style={{ backgroundColor: '#1a1b1e', padding: '20px', marginBottom: '40px' }}>
+            <nav style={{ backgroundColor: '#ebe6e1', padding: '20px', marginBottom: '40px' }}>
                 <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                        <Link to="/" style={{ textDecoration: 'none', color: '#ffffff', fontSize: '24px', fontWeight: '700', letterSpacing: '-0.02em', borderBottom: 'none' }}>
+                        <Link to="/" style={{ textDecoration: 'none', color: '#1a1b1e', fontSize: '24px', fontWeight: '700', letterSpacing: '-0.02em', borderBottom: 'none' }}>
                             DrawVerse
                         </Link>
                     </div>
@@ -52,7 +52,7 @@ function App() {
                                 <NavLink to="/profile" style={navLinkStyle}>
                                     {user.username}
                                 </NavLink>
-                                <button onClick={handleLogout} style={{ marginLeft: '12px', backgroundColor: '#ffffff', color: '#1a1b1e' }}>
+                                <button onClick={handleLogout} style={{ marginLeft: '12px', backgroundColor: '#1a1b1e', color: '#ffffff' }}>
                                     Logout
                                 </button>
                             </>
@@ -60,7 +60,7 @@ function App() {
                             <>
                                 <NavLink to="/login" style={navLinkStyle}>Login</NavLink>
                                 <Link to="/register" style={{ textDecoration: 'none', borderBottom: 'none' }}>
-                                    <button style={{ marginLeft: '12px', backgroundColor: '#ffffff', color: '#1a1b1e' }}>Register</button>
+                                    <button style={{ marginLeft: '12px', backgroundColor: '#1a1b1e', color: '#ffffff' }}>Register</button>
                                 </Link>
                             </>
                         )}
