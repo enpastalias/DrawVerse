@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 body {
   margin: 0;
-  font-family: sans-serif;
-  background-color: #f4f4f4;
-  color: #333;
+  font-family: 'Inter', sans-serif;
+  background-color: #f8f6f4;
+  color: #1a1b1e;
 }
 
 * {
@@ -16,30 +18,91 @@ body {
 }
 
 button {
-  padding: 10px 15px;
+  padding: 12px 24px;
   border: none;
-  border-radius: 4px;
-  background-color: #007bff;
+  border-radius: 8px;
+  background-color: #1a1b1e;
   color: white;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s;
 }
 
 button:hover {
-  background-color: #0056b3;
+  background-color: #333;
+}
+
+button.button-secondary {
+  background-color: transparent;
+  color: #1a1b1e;
+  border: 1px solid #1a1b1e;
+}
+
+button.button-secondary:hover {
+  background-color: #f8f6f4;
+  color: #333;
+}
+
+button.button-danger {
+  background-color: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+}
+
+button.button-danger:hover {
+  background-color: #fee2e2;
 }
 
 input {
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 15px;
+  background-color: #fff;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+input:focus {
+  outline: none;
+  border-color: #1a1b1e;
 }
 
 .card {
   background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  padding: 48px;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.03);
   margin-bottom: 20px;
+  border: 1px solid #f0f0f0;
+}
+
+h2 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4b5563;
+  margin-bottom: 6px;
+  display: block;
+}
+
+a {
+  color: #1a1b1e;
+  text-decoration: none;
+  font-weight: 500;
+  border-bottom: 1px solid #1a1b1e;
+  padding-bottom: 1px;
+}
+
+a:hover {
+  color: #4b5563;
+  border-color: #4b5563;
 }

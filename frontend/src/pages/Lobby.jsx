@@ -74,7 +74,7 @@ export default function Lobby() {
             <div style={{ padding: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h2>Room: {room.roomCode} - Status: {room.status}</h2>
-                    <button onClick={handleLeaveRoom} style={{ backgroundColor: '#dc3545' }}>Leave Room</button>
+                    <button className="button-danger" onClick={handleLeaveRoom}>Leave Room</button>
                 </div>
 
                 <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
@@ -171,7 +171,7 @@ export default function Lobby() {
                             placeholder="CODE"
                             style={{ flex: 1, minWidth: 0 }}
                         />
-                        <button onClick={handleJoinRoom} style={{ backgroundColor: '#28a745' }}>Join</button>
+                        <button onClick={handleJoinRoom}>Join</button>
                     </div>
                 </div>
             </div>

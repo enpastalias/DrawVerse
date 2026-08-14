@@ -118,12 +118,20 @@ export default function Canvas({ roomCode }) {
     }, [messages]);
 
     const getMousePos = (e) => {
-        const rect = canvasRef.current.getBoundingClientRect();
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
         let clientX = e.clientX, clientY = e.clientY;
         if (e.touches && e.touches.length > 0) {
             clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
         }
-        return { x: clientX - rect.left, y: clientY - rect.top };
+
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
     };
 
     const startDrawing = (e) => {
@@ -178,8 +186,8 @@ export default function Canvas({ roomCode }) {
                     ))}
                 </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                    <button onClick={handlePlayAgain} style={{ flex: 1, backgroundColor: '#28a745' }}>Play Again</button>
-                    <button onClick={handleExitRoom} style={{ flex: 1, backgroundColor: '#dc3545' }}>Exit Room</button>
+                    <button onClick={handlePlayAgain} style={{ flex: 1 }}>Play Again</button>
+                    <button className="button-danger" onClick={handleExitRoom} style={{ flex: 1 }}>Exit Room</button>
                 </div>
             </div>
         );
@@ -269,7 +277,7 @@ export default function Canvas({ roomCode }) {
                             <label>Size: </label>
                             <input type="range" min="1" max="50" value={brushSize} onChange={e => setBrushSize(parseInt(e.target.value))} />
                         </div>
-                        <button onClick={handleClear} style={{ backgroundColor: '#dc3545', marginLeft: 'auto' }}>Clear</button>
+                        <button className="button-danger" onClick={handleClear} style={{ marginLeft: 'auto' }}>Clear</button>
                     </div>
                 )}
             </div>

@@ -3,22 +3,22 @@ import { Link } from 'react-router-dom';
 
 export default function Home() {
     return (
-        <div style={{ padding: '20px', textAlign: 'center' }}>
-            <div className="card" style={{ maxWidth: '600px', margin: '0 auto' }}>
+        <div style={{ padding: '60px 20px', display: 'flex', justifyContent: 'center' }}>
+            <div className="card" style={{ width: '100%', maxWidth: '600px', textAlign: 'center' }}>
                 <h2>Welcome to DrawVerse</h2>
-                <p>The simplest real-time multiplayer drawing and guessing experience.</p>
+                <p style={{ color: '#6b7280', fontSize: '18px', margin: '0 0 40px 0' }}>The simplest real-time multiplayer drawing and guessing experience.</p>
 
-                <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <Link to="/lobby">
-                        <button style={{ width: '100%', padding: '10px' }}>Enter Lobby</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <Link to="/lobby" style={{ textDecoration: 'none', borderBottom: 'none' }}>
+                        <button style={{ width: '100%' }}>Enter Lobby</button>
                     </Link>
 
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <Link to="/login" style={{ flex: 1 }}>
-                            <button style={{ width: '100%', backgroundColor: '#6c757d' }}>Login</button>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                        <Link to="/login" style={{ flex: 1, textDecoration: 'none', borderBottom: 'none' }}>
+                            <button className="button-secondary" style={{ width: '100%' }}>Login</button>
                         </Link>
-                        <Link to="/register" style={{ flex: 1 }}>
-                            <button style={{ width: '100%', backgroundColor: '#28a745' }}>Register</button>
+                        <Link to="/register" style={{ flex: 1, textDecoration: 'none', borderBottom: 'none' }}>
+                            <button className="button-secondary" style={{ width: '100%' }}>Register</button>
                         </Link>
                     </div>
                 </div>

@@ -24,45 +24,51 @@ function App() {
         setUser(null);
     };
 
-    const navLinkStyle = {
+    const navLinkStyle = ({ isActive }) => ({
         textDecoration: 'none',
-        color: '#007bff',
-        marginRight: '15px',
-        fontWeight: 'bold'
-    };
+        color: isActive ? '#ffffff' : '#9ca3af',
+        marginRight: '24px',
+        fontWeight: '500',
+        fontSize: '15px',
+        borderBottom: 'none'
+    });
 
     return (
-        <div className="app-container">
-            <nav className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', marginBottom: '20px' }}>
-                <div>
-                    <Link to="/" style={{ textDecoration: 'none', color: '#333', fontSize: '24px', fontWeight: 'bold' }}>
-                        DrawVerse
-                    </Link>
-                </div>
+        <div>
+            <nav style={{ backgroundColor: '#1a1b1e', padding: '20px', marginBottom: '40px' }}>
+                <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <Link to="/" style={{ textDecoration: 'none', color: '#ffffff', fontSize: '24px', fontWeight: '700', letterSpacing: '-0.02em', borderBottom: 'none' }}>
+                            DrawVerse
+                        </Link>
+                    </div>
 
-                <div>
-                    <NavLink to="/" style={navLinkStyle}>Home</NavLink>
-                    <NavLink to="/lobby" style={navLinkStyle}>Lobby</NavLink>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <NavLink to="/" style={navLinkStyle}>Home</NavLink>
+                        <NavLink to="/lobby" style={navLinkStyle}>Lobby</NavLink>
 
-                    {user ? (
-                        <>
-                            <NavLink to="/profile" style={navLinkStyle}>
-                                {user.username}
-                            </NavLink>
-                            <button onClick={handleLogout} style={{ backgroundColor: '#dc3545', padding: '5px 10px', fontSize: '14px' }}>
-                                Logout
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <NavLink to="/login" style={navLinkStyle}>Login</NavLink>
-                            <NavLink to="/register" style={navLinkStyle}>Register</NavLink>
-                        </>
-                    )}
+                        {user ? (
+                            <>
+                                <NavLink to="/profile" style={navLinkStyle}>
+                                    {user.username}
+                                </NavLink>
+                                <button onClick={handleLogout} style={{ marginLeft: '12px', backgroundColor: '#ffffff', color: '#1a1b1e' }}>
+                                    Logout
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <NavLink to="/login" style={navLinkStyle}>Login</NavLink>
+                                <Link to="/register" style={{ textDecoration: 'none', borderBottom: 'none' }}>
+                                    <button style={{ marginLeft: '12px', backgroundColor: '#ffffff', color: '#1a1b1e' }}>Register</button>
+                                </Link>
+                            </>
+                        )}
+                    </div>
                 </div>
             </nav>
 
-            <main>
+            <main className="app-container">
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
